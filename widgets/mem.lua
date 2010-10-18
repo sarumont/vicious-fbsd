@@ -5,7 +5,7 @@
 ---------------------------------------------------
 
 -- {{{ Grab environment
-local io = { lines = io.lines }
+local io = { lines = io.lines, popen = io.popen }
 local setmetatable = setmetatable
 local math = { floor = math.floor }
 local string = { gmatch = string.gmatch }
@@ -20,26 +20,34 @@ module("vicious.widgets.mem")
 local function worker(format)
     local mem = { buf = {}, swp = {} }
 
-    -- Get MEM info
-    for line in io.lines("/proc/meminfo") do
-        for k, v in string.gmatch(line, "([%a]+):[%s]+([%d]+).+") do
-            if     k == "MemTotal"  then mem.total = math.floor(v/1024)
-            elseif k == "MemFree"   then mem.buf.f = math.floor(v/1024)
-            elseif k == "Buffers"   then mem.buf.b = math.floor(v/1024)
-            elseif k == "Cached"    then mem.buf.c = math.floor(v/1024)
-            elseif k == "SwapTotal" then mem.swp.t = math.floor(v/1024)
-            elseif k == "SwapFree"  then mem.swp.f = math.floor(v/1024)
-            end
-        end
-    end
+	-- get mem data frem sysctl
+	local fd = io.popen( 'sysctl -n hw.pagesize' )
+	local pagesize = fd:read();
+	fd:close()
 
-    -- Calculate memory percentage
-    mem.free  = mem.buf.f + mem.buf.b + mem.buf.c
-    mem.inuse = mem.total - mem.free
-    mem.usep  = math.floor(mem.inuse / mem.total * 100)
-    -- Calculate swap percentage
-    mem.swp.inuse = mem.swp.t - mem.swp.f
-    mem.swp.usep  = math.floor(mem.swp.inuse / mem.swp.t * 100)
+	fd = io.popen( 'sysctl -n vm.stats.vm.v_page_count' )
+	local total_pages = fd:read();
+	fd:close()
+
+	fd = io.popen( 'sysctl -n vm.stats.vm.v_free_count' )
+	local free_pages = fd:read();
+	fd:close()
+
+	fd = io.popen( 'sysctl -n vm.stats.vm.v_inactive_count' )
+	local inact_pages = fd:read();
+	fd:close()
+
+	-- Calculate percentage
+	mem.total = ( total_pages * pagesize )
+	mem.free = ( free_pages + inact_pages ) * pagesize
+	mem.inuse = ( total_pages - free_pages - inact_pages ) * pagesize
+	mem.usep = math.floor( mem.inuse / mem.total * 100 )
+
+	-- TODO:
+	mem.swp.total = 0
+	mem.swp.free = 0
+	mem.swp.inuse = 0
+	mem.swp.usep = 0
 
     return {mem.usep,     mem.inuse,     mem.total, mem.free,
             mem.swp.usep, mem.swp.inuse, mem.swp.t, mem.swp.f}
