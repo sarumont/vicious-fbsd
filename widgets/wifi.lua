@@ -36,7 +36,7 @@ local function worker(format, warg)
     if not warg then return end
 
     -- Get data from iwconfig where available
-    local iwconfig = "/sbin/iwconfig"
+    local iwconfig = "/sbin/ifconfig"
     local f = io.open(iwconfig, "rb")
     if not f then
         iwconfig = "/usr/sbin/iwconfig"
@@ -55,11 +55,11 @@ local function worker(format, warg)
     -- Output differs from system to system, some stats can be
     -- separated by =, and not all drivers report all stats
     winfo["{ssid}"] =  -- SSID can have almost anything in it
-      string.match(iw, 'ESSID[=:]"([%w%p]+[%s%w%p]*]*)"') or winfo["{ssid}"]
+      string.match(iw, 'ssid[ ]([%w%p]+[%s%w%p]*]*) channel') or winfo["{ssid}"]
     winfo["{mode}"] =  -- Modes are simple, but also match the "-" in Ad-Hoc
-      string.match(iw, "Mode[=:]([%w%-]*)") or winfo["{mode}"]
+      string.match(iw, "mode[ ]([%w%-]*)") or winfo["{mode}"]
     winfo["{chan}"] =  -- Channels are plain digits
-      tonumber(string.match(iw, "Channel[=:]([%d]+)") or winfo["{chan}"])
+      tonumber(string.match(iw, "channel[ ]([%d]+)") or winfo["{chan}"])
     winfo["{rate}"] =  -- Bitrate can start with a space, we don't want to display Mb/s
       tonumber(string.match(iw, "Bit Rate[=:]([%s]?[%d%.]*)") or winfo["{rate}"])
     winfo["{link}"] =  -- Link quality can contain a slash (32/70), match only the first number
