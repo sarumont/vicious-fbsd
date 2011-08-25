@@ -13,7 +13,6 @@ local string = { match = string.match }
 local helpers = require("vicious.helpers")
 -- }}}
 
-
 -- FS: provides file system disk space usage
 module("vicious.widgets.fs")
 
@@ -39,8 +38,6 @@ local function worker(format, warg)
             helpers.uformat(fs_info, m .. " size",  s, unit)
             helpers.uformat(fs_info, m .. " used",  u, unit)
             helpers.uformat(fs_info, m .. " avail", a, unit)
-
-			print( "mountpoint : " .. m );
 
             fs_info["{" .. m .. " used_p}"]  = tonumber(p)
             fs_info["{" .. m .. " avail_p}"] = 100 - tonumber(p)
