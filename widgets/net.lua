@@ -5,74 +5,39 @@
 ---------------------------------------------------
 
 -- {{{ Grab environment
+local assert = assert
+local error = error
 local tonumber = tonumber
-local os = { time = os.time }
-local io = { lines = io.lines }
+local io = { popen = io.popen }
 local setmetatable = setmetatable
-local string = { match = string.match }
+local string = { find = string.find }
 local helpers = require("vicious.helpers")
 -- }}}
 
 
--- Net: provides state and usage statistics of all network interfaces
+-- Net: provides state and usage statistics of a specific network interface
 module("vicious.widgets.net")
 
-
--- Initialize function tables
-local nets = {}
--- Variable definitions
-local unit = { ["b"] = 1, ["kb"] = 1024,
-    ["mb"] = 1024^2, ["gb"] = 1024^3
-}
-
 -- {{{ Net widget type
-local function worker(format)
-    local args = {}
+local function worker(format, interface)
+   local cmd = assert(io.popen("/usr/local/bin/ifstat -n -i "..interface.." 0.1 1 2>&1", "r"), "Requires ifstat")
+   local output = cmd:read("*all")
+   cmd:close()
+   local num_pat = "[ ]+([%d]+[%.][%d]+)[ ]+([%d]+[%.][%d]+)"
+   local _, _, kb_in, kb_out = string.find(output, num_pat)
 
-    -- Get NET stats
-    for line in io.lines("/proc/net/dev") do
-        -- Match wmaster0 as well as rt0 (multiple leading spaces)
-        local name = string.match(line, "^[%s]?[%s]?[%s]?[%s]?([%w]+):")
-        if name ~= nil then
-            -- Received bytes, first value after the name
-            local recv = tonumber(string.match(line, ":[%s]*([%d]+)"))
-            -- Transmited bytes, 7 fields from end of the line
-            local send = tonumber(string.match(line,
-             "([%d]+)%s+%d+%s+%d+%s+%d+%s+%d+%s+%d+%s+%d+%s+%d$"))
+   assert(kb_in, "Bad interface")
+   assert(kb_out, "Bad inteface")
 
-            helpers.uformat(args, name .. " rx", recv, unit)
-            helpers.uformat(args, name .. " tx", send, unit)
+   kb_in = tonumber(kb_in)
+   kb_out = tonumber(kb_out)
 
-            -- Operational state and carrier detection
-            local sysnet = helpers.pathtotable("/sys/class/net/" .. name)
-            args["{"..name.." carrier}"] = tonumber(sysnet.carrier) or 0
+   local args = {}
 
-            if nets[name] == nil then
-                -- Default values on the first run
-                nets[name] = {}
-                helpers.uformat(args, name .. " down", 0, unit)
-                helpers.uformat(args, name .. " up",   0, unit)
+   args["{rx}"] = kb_in
+   args["{tx}"] = kb_out
 
-                nets[name].time = os.time()
-            else -- Net stats are absolute, substract our last reading
-                local interval  = os.time() - nets[name].time >  0 and
-                                  os.time() - nets[name].time or 1
-                nets[name].time = os.time()
-
-                local down = (recv - nets[name][1]) / interval
-                local up   = (send - nets[name][2]) / interval
-
-                helpers.uformat(args, name .. " down", down, unit)
-                helpers.uformat(args, name .. " up",   up,   unit)
-            end
-
-            -- Store totals
-            nets[name][1] = recv
-            nets[name][2] = send
-        end
-    end
-
-    return args
+   return args
 end
 -- }}}
 
